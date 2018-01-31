@@ -47,7 +47,7 @@ There are some false positive and the location of the boxes are not perfect. How
 
 ### Video Implementation
 
-Here's a [link to my video result](./heat10_decay0.75_initheat0_project_video.mp4)
+Here's a [link to my video result](./out_thres10_decay0.75_initheat0_project_video.mp4)
 
 To further eliminate false positives, I aggregate the heat map of current frame with past frames using exponential sum with decay rate of 0.75. However, the side effect is that the location of the bounding box becomes less accurate.
 
