@@ -79,7 +79,7 @@ colorspace = 'YCrCb' # Can be RGB, HSV, LUV, HLS, YUV, YCrCb
 orient = 6
 pix_per_cell = 16
 cell_per_block = 2
-hog_channel = 0
+hog_channel = 'ALL'
 
 def get_training_feature(img):
     # c_feature = HSL_hist(img)
@@ -97,7 +97,7 @@ def get_training_feature(img):
 
 def prepare_data():
     nocar_list = glob.glob('data/non-vehicles/**/*.png')
-    nocar_list += glob.glob('test_patch/noncar/*.png')
+    # nocar_list += glob.glob('test_patch/noncar/*.png')
     car_list = glob.glob('data/vehicles/**/*.png')
     X = []
     Y = [0]*(len(nocar_list)*2)
@@ -137,8 +137,9 @@ X_scaler = StandardScaler().fit(Xtrain)
 scaled_Xtrain = X_scaler.transform(Xtrain)
 scaled_Xtest = X_scaler.transform(Xtest)
 ## %%
-clf = LinearSVC(verbose = 1, max_iter = 3000)
+clf = LinearSVC(verbose = 1, max_iter = 5000)
 clf.fit(scaled_Xtrain,Ytrain)
+print(clf.score(scaled_Xtrain, Ytrain))
 print(clf.score(scaled_Xtest, Ytest))
 # %% extra test data
 car_patches = glob.glob("test_patch/car/*.png")
@@ -262,16 +263,18 @@ def get_bbox(frame): # output bounding boxes
             # print((x-hog_feature_vec).sum())
             X = [x]
             X_scale = X_scaler.transform(X)
-            Y = clf.predict(X_scale)
-            if Y[0] == 1:
+            Y = clf.decision_function(X_scale)
+            decision_threshold = 0.4
+            if Y[0] > decision_threshold:
                 bboxes.append(bbox)
     return bboxes
-test = mpimg.imread('test_images/test4.jpg')
-bboxes = get_bbox(test)
-test_bbox = visualize_bbox(test, bboxes)
-plt.figure(figsize = (16, 9))
-plt.imshow(test_bbox)
-plt.imsave("bboxes.png", test_bbox)
+for i in range(1, 7):
+    test = mpimg.imread('test_images/test{}.jpg'.format(i))
+    bboxes = get_bbox(test)
+    test_bbox = visualize_bbox(test, bboxes)
+    plt.figure(figsize = (16, 9))
+    plt.imshow(test_bbox)
+    plt.imsave("bboxes.png", test_bbox)
 plt.show()
 
 ## %% aggregation
@@ -298,7 +301,7 @@ plt.figure(figsize = (16, 9))
 plt.imshow(heatmap.astype(np.uint8)*20, cmap='gray')
 plt.savefig("heatmap.png")
 plt.show()
-heatmap = apply_threshold(heatmap, 5)
+heatmap = apply_threshold(heatmap, 2)
 labels = label(heatmap)
 print(labels[1], 'cars found')
 print(labels[0].shape, labels[0].dtype)
@@ -332,17 +335,18 @@ plt.imsave("result.png", draw_img)
 plt.show()
 
 # %% process image
-def process_image(img, threshold = 7, heatmap = np.zeros_like(img)):
+def process_image(img, threshold = 2, heatmap = np.zeros_like(img)):
     bboxes = get_bbox(img)
     heatmap = add_heat(heatmap, bboxes)
     heatmap = apply_threshold(heatmap, threshold)
     labels = label(heatmap)
     draw_img = draw_labeled_bboxes(np.copy(img), labels)
     return draw_img
-
-img = mpimg.imread('test_images/test6.jpg')
-output = process_image(img)
-plt.imshow(output)
+for i in range(1, 7):
+    img = mpimg.imread('test_images/test{}.jpg'.format(i))
+    output = process_image(img, threshold = 1, heatmap = np.zeros_like(img))
+    plt.figure(figsize = (16, 9))
+    plt.imshow(output)
 plt.show()
 # %% process video
 import imageio
@@ -350,16 +354,27 @@ import progressbar
 bar = progressbar.ProgressBar()
 def process_video(filename):
     vid = imageio.get_reader(filename, 'ffmpeg')
-    threshold = 10
-    decay_ratio = 0.75
+    threshold = 2
+    decay_ratio = 0
     init_heat = 0
     vid_shape = vid.get_meta_data()['size']
     heatmap = np.zeros((vid_shape[1], vid_shape[0])) + init_heat
     writer = imageio.get_writer("out_thres{}_decay{}_initheat{}_{}".format(threshold, decay_ratio, init_heat, filename), fps=15)
-    writer_heat = imageio.get_writer("heat{}_decay{}_initheat{}_{}".format(threshold, decay_ratio, init_heat, filename), fps=15)
+    # writer_heat = imageio.get_writer("heat{}_decay{}_initheat{}_{}".format(threshold, decay_ratio, init_heat, filename), fps=15)
+    heatmap_buffer = []
     for image in bar(vid):
-        result = process_image(image, threshold, heatmap)
-        heatmap *= decay_ratio
-        writer_heat.append_data((heatmap*10).astype(np.uint8))
+        bboxes = get_bbox(image)
+        heatmap = np.zeros_like(image)
+        heatmap = add_heat(heatmap, bboxes)
+        heatmap_agg = heatmap.copy()
+        for heatmap_past in heatmap_buffer:
+            heatmap_agg += heatmap_past
+        heatmap_agg = apply_threshold(heatmap_agg, threshold*len(heatmap_buffer))
+        labels = label(heatmap_agg)
+        result = draw_labeled_bboxes(np.copy(image), labels)
+        heatmap_buffer.append(heatmap)
+        if len(heatmap_buffer) > 3:
+            heatmap_buffer.pop(0)
+        # writer_heat.append_data((heatmap*10).astype(np.uint8))
         writer.append_data(result)
 process_video("project_video.mp4")

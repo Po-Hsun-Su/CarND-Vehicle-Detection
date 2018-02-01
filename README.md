@@ -7,13 +7,13 @@ All code in this project is in `main.py`.
 
 #### 1. Extracted HOG features from the training images.
 
-The code for extracting HOG feature is in the function `extract_features()` and `get_training_feature()`. I use only the Y channel of the `YCrCb` color space and HOG parameters of `orientations=6`, `pixels_per_cell=(16, 16)` and `cells_per_block=(2, 2)`.
+The code for extracting HOG feature is in the function `extract_features()` and `get_training_feature()`. I use all three channel of the `YCrCb` color space and HOG parameters of `orientations=6`, `pixels_per_cell=(16, 16)` and `cells_per_block=(2, 2)`.
 
 #### 2. Choice of HOG parameters.
 
 Initially, I use the parameters `orientations=9`, `pixels_per_cell=(8, 8)` and `cells_per_block=(2, 2)`. The resulting feature vector has 1764 dimensions. The test validation accuracy of linear SVM is 0.92. However, the test accuracy on the image in the "test_images" folder is only about 0.8. Because there are lighting and quality differences between the training data and the test images, I lower the dimension of the HOG feature to reduce overfitting of the training data.
 
-Finally, I use `orientations=6`, `pixels_per_cell=(16, 16)` and `cells_per_block=(2, 2)`. The validation accuracy increases to 0.95 and test accuracy increases to 0.9.
+Finally, I use `orientations=6`, `pixels_per_cell=(16, 16)` and `cells_per_block=(2, 2)`. The validation accuracy increases to 0.99 and test accuracy increases to 0.96.
 
 #### 3. Training model
 
@@ -31,7 +31,7 @@ For a given window size, I compute the minimum and maximum y positions that may 
 
 #### 2. Show some examples of test images to demonstrate how your pipeline is working.  What did you do to optimize the performance of your classifier?
 
-The following images shows the remaining bounding boxes that the classifier says there is a car in it.
+The following images shows the remaining bounding boxes that the classifier says there is a car in it. To eliminate false positive, I use `svc.decision_function` to get the decision value and only accept boxes with value higer than 0.4.
 ![](bboxes.png)
 There are some false positive and the location of the boxes are not perfect. However, after using the heat map and thresholding method to aggregate the bounding boxes (as shown in the figure below), we can identify the two cars.
 
@@ -47,9 +47,9 @@ There are some false positive and the location of the boxes are not perfect. How
 
 ### Video Implementation
 
-Here's a [link to my video result](./out_thres10_decay0.75_initheat0_project_video.mp4)
+Here's a [link to my video result](./out_thres2_decay0_initheat0_project_video.mp4)
 
-To further eliminate false positives, I aggregate the heat map of current frame with past frames using exponential sum with decay rate of 0.75. However, the side effect is that the location of the bounding box becomes less accurate.
+To further eliminate false positives, I aggregate the heat map of current frame with past 3 frames.
 
 ---
 
